@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Besiege die bösen Labubus – Einstellungstest</title>
+<style>
+  body {
+    margin: 0; background: linear-gradient(135deg, #a2d9ff, #275e8e);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #f0f0f0;
+    display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+    padding: 10px;
+  }
+  h1 {
+    margin-top: 20px;
+    text-align: center;
+    font-weight: 900;
+    text-shadow: 2px 2px 6px #0b2c4a;
+  }
+  #gameContainer {
+    margin: 15px 0;
+    background: #162f4a;
+    border-radius: 12px;
+    box-shadow: 0 8px 15px rgba(0,0,0,0.5);
+    padding: 15px;
+    max-width: 360px;
+    width: 100%;
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 44px);
+    grid-template-rows: repeat(8, 44px);
+    gap: 1px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 0 10px #0d1f3d;
+  }
+  .square {
+    width: 44px; height: 44px;
+    display: flex;
+    justify-content: center; align-items: center;
+    font-size: 36px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.3s;
+  }
+  .light {
+    background: #c7d5e0;
+  }
+  .dark {
+    background: #2e4057;
+  }
+  .highlight {
+    background: #f3ff99 !important;
+  }
+  #questionnaire {
+    margin-top: 20px;
+    background: #244466dd;
+    padding: 20px;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 4px 10px #000a;
+  }
+  label {
+    font-weight: 600;
+    margin-top: 12px;
+    display: block;
+  }
+  input[type=number], input[type=text] {
+    margin-top: 6px;
+    padding: 8px;
+    border-radius: 6px;
+    border: none;
+    font-size: 16px;
+    width: 100%;
+    max-width: 250px;
+  }
+  input[type=submit], button {
+    margin-top: 20px;
+    padding: 12px 25px;
+    font-size: 18px;
+    font-weight: 700;
+    background: #f4a261;
+    color: #1b1b1b;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 3px 5px #b06830;
+    transition: background-color 0.3s;
+  }
+  input[type=submit]:hover, button:hover {
+    background: #f79743;
+  }
+  #result {
+    margin-top: 24px;
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
+    color: #a5ff95;
+    text-shadow: 0 0 10px #0b540b;
+    min-height: 48px;
+  }
+  /* Scroll for mobile */
+  #board {
+    touch-action: manipulation;
+  }
+</style>
+</head>
+<body>
+
+<h1>Besiege die bösen Labubus und erhalte die Chance für unser Unternehmen zu arbeiten!</h1>
+
+<div id="gameContainer">
+  <div id="board" aria-label="Schachbrett" role="grid"></div>
+</div>
+
+<div id="questionnaire" style="display:none;">
+  <form id="testForm">
+    <label for="goonHours">Wie viele Stunden verbringen Sie am Tag mit goonen? (2h oder mehr = richtig)</label>
+    <input type="number" id="goonHours" name="goonHours" min="0" max="24" required />
+    
+    <label for="obamaName">Was ist Obamas Nachname?</label>
+    <input type="text" id="obamaName" name="obamaName" placeholder="Geben Sie den Nachnamen ein" required />
+    
+    <input type="submit" value="Testergebnis prüfen" />
+  </form>
+</div>
+
+<div id="result"></div>
+
+<script>
+// ----- SVG Pokémon & Labubus Symbole (Unicode-Emojis als Platzhalter für schnelles Laden)
+const piecesSVG = {
+  // Spieler (Weiß) = Pokémon (Unicode oder SVG-Simplified)
+  'P': '🐢', // Bisasam (Bulbasaur) - Bauer
+  'R': '🦖', // Onix - Turm (Dinosaurier als Ersatz)
+  'N': '⚡', // Pikachu - Springer
+  'B': '🐉', // Dragoran (Dragonite) - Läufer
+  'Q': '👾', // Mewtu (Mewtwo) - Dame
+  'K': '🔥', // Glurak (Charizard) - König
+  
+  // Gegner (Schwarz) = Labubus (Lapras) - dunkle blaue Wasserwesen
+  'p': '🐳', // Bauer
+  'r': '🐋', // Turm
+  'n': '🌊', // Springer
+  'b': '🐬', // Läufer
+  'q': '💀', // Dame (gruselig)
+  'k': '👹'  // König (gruselig)
+};
+
+// Initiale Position - Standard Schach
+const initialBoard = [
+  ['r','n','b','q','k','b','n','r'],
+  ['p','p','p','p','p','p','p','p'],
+  ['','','','','','','',''],
+  ['','','','','','','',''],
+  ['','','','','','','',''],
+  ['','','','','','','',''],
+  ['P','P','P','P','P','P','P','P'],
+  ['R','N','B','Q','K','B','N','R']
+];
+
+let board = JSON.parse(JSON.stringify(initialBoard));
+let selectedSquare = null;
+let playerTurn = 'white'; // Spieler = weiß = Pokémon
+
+const boardEl = document.getElementById('board');
+const questionnaire = document.getElementById('questionnaire');
+const resultEl = document.getElementById('result');
+
+function renderBoard() {
+  boardEl.innerHTML = '';
+  for(let r=0; r<8; r++) {
+    for(let c=0; c<8; c++) {
+      const square = document.createElement('div');
+      square.className = 'square ' + ((r+c)%2 === 0 ? 'light' : 'dark');
+      square.dataset.row = r;
+      square.dataset.col = c;
+      square.setAttribute('role','gridcell');
+      square.setAttribute('aria-label', `Feld ${String.fromCharCode(65+c)}${8-r}, ` + 
+        (board[r][c] ? (playerTurn === 'white' && board[r][c] === board[r][c].toUpperCase() ? 'Ihr ' : 'Gegner ') + 
+        pieceName(board[r][c]) : 'leer'));
+      
+      if(selectedSquare && selectedSquare[0] === r && selectedSquare[1] === c) {
+        square.classList.add('highlight');
+      }
+      square.textContent = piecesSVG[board[r][c]] || '';
+      square.addEventListener('click', () => onSquareClick(r,c));
+      boardEl.appendChild(square);
+    }
+  }
+}
+
+function pieceName(p) {
+  const map = {
+    'P': 'Bisasam-Bauer',
+    'R': 'Onix-Turm',
+    'N': 'Pikachu-Springer',
+    'B': 'Dragoran-Läufer',
+    'Q': 'Mewtu-Dame',
+    'K': 'Glurak-König',
+    'p': 'Lapras-Bauer',
+    'r': 'Lapras-Turm',
+    'n': 'Lapras-Springer',
+    'b': 'Lapras-Läufer',
+    'q': 'Lapras-Dame',
+    'k': 'Lapras-König'
+  };
+  return map[p] || 'Figur';
+}
+
+// Einfache Zugvalidierung (nur sehr basale Logik, für Demo)
+function canMove(fromR, fromC, toR, toC) {
+  const piece = board[fromR][fromC];
+  if(!piece) return false;
+  // Nur Spieler darf ziehen
+  if(playerTurn !== 'white') return false;
+  // Eigene Figur auf Zielfeld nicht erlaubt
+  if(board[toR][toC] && board[toR][toC].toUpperCase() === piece.toUpperCase()) return false;
+  // Für Demo: Erlaube Züge nur nach vorne 1 Feld für Bauern
+  if(piece === 'P') {
+    if(toR === fromR-1 && toC === fromC && !board[toR][toC]) return true;
+  }
+  // Sonst allgemein erlauben (nur Demo)
+  return true;
+}
+
+function onSquareClick(r,c) {
+  if(selectedSquare) {
+    if(canMove(selectedSquare[0], selectedSquare[1], r, c)) {
+      movePiece(selectedSquare[0], selectedSquare[1], r, c);
+      selectedSquare = null;
+      playerTurn = 'black'; // Gegner zieht automatisch
+      renderBoard();
+      setTimeout(enemyMove, 800);
+      return;
+    } else {
+      // Auswahl ändern
+      if(board[r][c] && board[r][c] === board[r][c].toUpperCase()) {
+        selectedSquare = [r,c];
+        renderBoard();
+      } else {
+        selectedSquare = null;
+        renderBoard();
+      }
+    }
+  } else {
+    if(board[r][c] && board[r][c] === board[r][c].toUpperCase()) {
+      selectedSquare = [r,c];
+      renderBoard();
+    }
+  }
+}
+
+function movePiece(fromR, fromC, toR, toC) {
+  board[toR][toC] = board[fromR][fromC];
+  board[fromR][fromC] = '';
+  // Prüfe, ob Gegner-König geschlagen
+  if(board[toR][toC].toLowerCase() === 'k') {
+    endGame(true);
+  }
+}
+
+function enemyMove() {
+  // Simpler Gegner: Zufälliger legaler Zug für einen schwarzen Bauern
+  const moves = [];
+  for(let r=0; r<8; r++) {
+    for(let c=0; c<8; c++) {
+      const p = board[r][c];
+      if(p && p === p.toLowerCase()) {
+        // Bauern bewegen sich 1 Feld nach unten, wenn frei
+        if(p === 'p' && r < 7 && !board[r+1][c]) {
+          moves.push({from: [r,c], to: [r+1,c]});
+        }
+      }
+    }
+  }
+  if(moves.length > 0) {
+    const move = moves[Math.floor(Math.random()*moves.length)];
+    board[move.to[0]][move.to[1]] = board[move.from[0]][move.from[1]];
+    board[move.from[0]][move.from[1]] = '';
+  }
+  // Nach Zug Gegner ist Spieler wieder dran
+  playerTurn = 'white';
+  renderBoard();
+  checkIfPlayerWon();
+}
+
+function checkIfPlayerWon() {
+  // Wenn schwarzer König weg, Spieler gewinnt
+  let blackKingExists = false;
+  for(let r=0; r<8; r++) {
+    for(let c=0; c<8; c++) {
+      if(board[r][c] === 'k') blackKingExists = true;
+    }
+  }
+  if(!blackKingExists) {
+    endGame(true);
+  }
+}
+
+function endGame(won) {
+  if(won) {
+    alert("Glückwunsch! Du hast die bösen Labubus besiegt! Nun folgt der Einstellungstest.");
+    questionnaire.style.display = 'block';
+    boardEl.style.filter = 'grayscale(100%) brightness(0.6)';
+  } else {
+    alert("Leider hast du verloren. Versuch es nochmal!");
+    resetGame();
+  }
+}
+
+function resetGame() {
+  board = JSON.parse(JSON.stringify(initialBoard));
+  selectedSquare = null;
+  playerTurn = 'white';
+  questionnaire.style.display = 'none';
+  resultEl.textContent = '';
+  boardEl.style.filter = 'none';
+  renderBoard();
+}
+
+renderBoard();
+
+// Formular-Auswertung
+
+document.getElementById('testForm').onsubmit = function(e){
+  e.preventDefault();
+  let goonHours = parseInt(document.getElementById('goonHours').value);
+  let obamaName = document.getElementById('obamaName').value.trim().toLowerCase();
+
+  let goonCorrect = goonHours >= 2;
+  let obamaCorrect = (obamaName === 'obama');
+
+  if(goonCorrect && obamaCorrect) {
+    resultEl.style.color = '#a5ff95';
+    resultEl.textContent = "Glückwunsch! Du bist als Eierlecker bei der Ligma GmbH eingestellt! Dein Startdatum ist der 01.09. dieses Jahres. Wir freuen uns auf dich!";
+  } else {
+    resultEl.style.color = '#ff6f6f';
+    resultEl.textContent = "Leider hast du den Einstellungstest nicht bestanden. Bitte versuche es erneut.";
+  }
+};
+</script>
+
+</body>
+</html>
